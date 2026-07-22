@@ -19,10 +19,10 @@ class BaseOptions:
         # =================================================================
         # 📁 DEFAULT DATA PATHS
         # =================================================================
-        self.busi_dataset_path = "C:/Users/CMME260629/Desktop/Synthetic_Data_ver12/Dataset_BUSI_with_GT"
-        self.processed_phantoms_path = "C:/Users/CMME260629/Desktop/Synthetic_Data_ver12/super_resolution/processed_data_python_pipeline"
-        self.simulation_results_path = "C:/Users/CMME260629/Desktop/Synthetic_Data_ver12/super_resolution/python_simulation_results"
-        self.final_output_path = "C:/Users/CMME260629/Desktop/Synthetic_Data_ver12/super_resolution/final_training_data"
+        self.busi_dataset_path = "C:/Users/CMME260629/projects_cmme/SuperResolutionAI/Dataset_BUSI_with_GT"
+        self.processed_phantoms_path = "C:/Users/CMME260629/projects_cmme/SuperResolutionAI/super_resolution/processed_data_python_pipeline"
+        self.simulation_results_path = "C:/Users/CMME260629/projects_cmme/SuperResolutionAI/super_resolution/python_simulation_results"
+        self.final_output_path = "C:/Users/CMME260629/projects_cmme/SuperResolutionAI/super_resolution/final_training_data"
         
         # =================================================================
         # 🎯 DEFAULT SAMPLE PROCESSING OPTIONS
@@ -117,7 +117,7 @@ class BaseOptions:
         self.tone_burst_freq = 1e6 * math.sqrt(self.sc_w_x) ###1.5e6  # Frequency [Hz] - Reduced for better penetration
         self.tone_burst_cycles = 4 * math.sqrt(self.sc_w_x) ### 4
         # ==============================scan lines and element_width before & after ===================================
-        self.number_scan_lines_before = 96 ###384
+        self.number_scan_lines_before = 48 ###384
         self.element_width_before = 2
         ###element_width*dy = scan_line_step and this should be 1/self.sc_w_y  times = 8 times, therefore self.element_width = self.element_width_before
         self.element_width = int(self.element_width_before) #2 # Element width in pixels
@@ -335,7 +335,7 @@ class PostProcessingConfig(BaseOptions):
         # Post-processing specific defaults
         self.target_shape = (256, 256) 
         self.show_preview = False
-        
+        self.file_suffix = ""
         # Post-processing parameters (from original module)
         self.gamma_correction = 0.5
         self.fund_filter_bw = 100

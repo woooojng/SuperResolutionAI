@@ -349,9 +349,21 @@ class WandBLogger:
             data["semantic_map"] = phantom_data.get("semantic_map")
 
         # Load final processed data
-        scan_file = os.path.join(final_output_path, "scans", f"scan_{sample_name}.pkl")
+        suffix = ""
+        if "sc1.0" in final_output_path:
+            suffix = "_HR"
+        elif "sc0.4" in final_output_path:
+            suffix = "_LR"
+
+        scan_file = os.path.join(
+            final_output_path,
+            "scans",
+            f"scan_{sample_name}{suffix}.pkl",
+        )
         label_file = os.path.join(
-            final_output_path, "labels", f"label_{sample_name}.pkl"
+            final_output_path,
+            "labels",
+            f"label_{sample_name}{suffix}.pkl",
         )
 
         if os.path.exists(scan_file):
@@ -842,22 +854,22 @@ class PipelineRunner:
         # Get successfully processed samples and extract actual sample names
         post_processing_results = results.get("post_processing", {})
 
-        # Debug: print all keys to see what we're working with
         print(f"Post-processing result keys: {list(post_processing_results.keys())}")
 
-        # Dynamically detect available noise levels and samples
+        flattened_results = {}
+        for variant_name, variant_results in post_processing_results.items():
+            if isinstance(variant_results, dict):
+                flattened_results.update(variant_results)
+
         sample_noise_combinations = {}
         detected_noise_levels = set()
 
-        for key in post_processing_results.keys():
+        for key in flattened_results.keys():
             if key.startswith("sample_"):
-                # Parse keys like "sample_benign_1_low" or "sample_malignant_5_medium"
                 parts = key.split("_")
-                if len(parts) >= 3:  # sample_category_id_noiselevel
-                    noise_level = parts[-1]  # Last part is noise level
-                    sample_name = "_".join(
-                        parts[1:-1]
-                    )  # Everything between 'sample_' and noise level
+                if len(parts) >= 3:
+                    noise_level = parts[-1]
+                    sample_name = "_".join(parts[1:-1])
 
                     detected_noise_levels.add(noise_level)
 
@@ -1146,6 +1158,7 @@ class PipelineRunner:
                 show_preview=self.config.show_post_processing_previews,
                 sc_w_x=variant["sc_w_x"],
                 sc_w_y=variant["sc_w_y"],
+                file_suffix="_HR" if variant_name == "sc1.0" else "_LR",
             )
 
             variant_results = process_batch(
@@ -1192,16 +1205,35 @@ class PipelineRunner:
 
         # Check final output structure
         if os.path.exists(self.config.final_output_path):
-            scans_path = os.path.join(self.config.final_output_path, "scans")
-            labels_path = os.path.join(self.config.final_output_path, "labels")
+            total_scan_files = 0
+            total_label_files = 0
 
-            if os.path.exists(scans_path):
-                scan_files = [f for f in os.listdir(scans_path) if f.endswith(".pkl")]
-                print(f"Scan files created: {len(scan_files)}")
+            for variant in self.config.scale_variants:
+                variant_name = variant["name"]
+                variant_out_path = os.path.join(self.config.final_output_path, variant_name)
+                scans_path = os.path.join(variant_out_path, "scans")
+                labels_path = os.path.join(variant_out_path, "labels")
 
-            if os.path.exists(labels_path):
-                label_files = [f for f in os.listdir(labels_path) if f.endswith(".pkl")]
-                print(f"Label files created: {len(label_files)}")
+                variant_scan_count = 0
+                variant_label_count = 0
+
+                if os.path.exists(scans_path):
+                    scan_files = [f for f in os.listdir(scans_path) if f.endswith(".pkl")]
+                    variant_scan_count = len(scan_files)
+                    total_scan_files += variant_scan_count
+
+                if os.path.exists(labels_path):
+                    label_files = [f for f in os.listdir(labels_path) if f.endswith(".pkl")]
+                    variant_label_count = len(label_files)
+                    total_label_files += variant_label_count
+
+                print(
+                    f"{variant_name}: "
+                    f"{variant_scan_count} scan files, {variant_label_count} label files"
+                )
+
+            print(f"Total scan files created: {total_scan_files}")
+            print(f"Total label files created: {total_label_files}")
 
         print("✓ Pipeline completed successfully!")
 

@@ -391,45 +391,64 @@ class PythonSimulationPostProcessor:
         """
         raise NotImplementedError("Use _process_phantom_labels_aligned for perfect spatial alignment")
     
-    def _save_processed_data(self, processed_results: Dict, sample_name: str,
-                           scans_path: str, labels_path: str) -> Dict:
+    def _save_processed_data(
+        self,
+        processed_results: Dict,
+        sample_name: str,
+        scans_path: str,
+        labels_path: str,
+    ) -> Dict:
         """Save processed data in ML-ready format"""
-        
-        # Apply gamma correction to ultrasound images
-        b_mode = self._gamma_correction(processed_results['b_mode'])
-        harmonic = self._gamma_correction(processed_results['harmonic'])
-        
-        # Resize ultrasound images to target shape using simple cv2.resize
+
+        b_mode = self._gamma_correction(processed_results["b_mode"])
+        harmonic = self._gamma_correction(processed_results["harmonic"])
+
         target_shape = self.config.target_shape
         print(f"Resizing ultrasound images to {target_shape} using simple resize")
-        
-        # Note: Transpose first to get (height, width) format
+
         b_mode_transposed = b_mode.T
         harmonic_transposed = harmonic.T
-        
+
         print(f"B-mode shape before resize: {b_mode_transposed.shape}")
         print(f"Harmonic shape before resize: {harmonic_transposed.shape}")
-        
-        b_mode_resized = cv2.resize(b_mode_transposed, target_shape, interpolation=cv2.INTER_CUBIC)
-        harmonic_resized = cv2.resize(harmonic_transposed, target_shape, interpolation=cv2.INTER_CUBIC)
-        
-        print(f"Final ultrasound image shapes: B-mode={b_mode_resized.shape}, Harmonic={harmonic_resized.shape}")
-        
-        # Prepare data dictionaries
+
+        b_mode_resized = cv2.resize(
+            b_mode_transposed,
+            target_shape,
+            interpolation=cv2.INTER_CUBIC,
+        )
+        harmonic_resized = cv2.resize(
+            harmonic_transposed,
+            target_shape,
+            interpolation=cv2.INTER_CUBIC,
+        )
+
+        print(
+            f"Final ultrasound image shapes: "
+            f"B-mode={b_mode_resized.shape}, Harmonic={harmonic_resized.shape}"
+        )
+
         scan_data = {
             "noisy_us_scan_b_mode": b_mode_resized,
-            "noisy_us_scan_harmonic": harmonic_resized
+            "noisy_us_scan_harmonic": harmonic_resized,
         }
-        
+
         label_data = {
-            "clean_phantom_gray": processed_results['phantom_labels']['tumor_gray_label'],
-            "clean_phantom_binary": processed_results['phantom_labels']['tumor_binary_mask'],
-            "clean_phantom_sound_speed": processed_results['phantom_labels']['sound_speed_region']
+            "clean_phantom_gray": processed_results["phantom_labels"]["tumor_gray_label"],
+            "clean_phantom_binary": processed_results["phantom_labels"]["tumor_binary_mask"],
+            "clean_phantom_sound_speed": processed_results["phantom_labels"]["sound_speed_region"],
         }
-        
-        # Save as pickle files
-        scan_file = os.path.join(scans_path, f"scan_{sample_name}.pkl")
-        label_file = os.path.join(labels_path, f"label_{sample_name}.pkl")
+
+        suffix = getattr(self.config, "file_suffix", "")
+
+        scan_file = os.path.join(
+            scans_path,
+            f"scan_{sample_name}{suffix}.pkl",
+        )
+        label_file = os.path.join(
+            labels_path,
+            f"label_{sample_name}{suffix}.pkl",
+        )
 
         with open(scan_file, "wb") as f:
             pickle.dump(scan_data, f)
@@ -437,23 +456,9 @@ class PythonSimulationPostProcessor:
         with open(label_file, "wb") as f:
             pickle.dump(label_data, f)
 
-        b_mode_png = os.path.join(scans_path, f"scan_{sample_name}_bmode.png")
-        harmonic_png = os.path.join(scans_path, f"scan_{sample_name}_harmonic.png")
-
-        cv2.imwrite(
-            b_mode_png,
-            (np.clip(b_mode_resized, 0, 1) * 255).astype(np.uint8),
-        )
-        cv2.imwrite(
-            harmonic_png,
-            (np.clip(harmonic_resized, 0, 1) * 255).astype(np.uint8),
-        )
-
         return {
             "scan_file": scan_file,
             "label_file": label_file,
-            "b_mode_png": b_mode_png,
-            "harmonic_png": harmonic_png,
             "processed_data": {**scan_data, **label_data},
         }
     
