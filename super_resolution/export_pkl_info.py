@@ -3,28 +3,29 @@ import pickle
 from pathlib import Path
 import numpy as np
 
-pkl_path = Path(r".\final_training_data\sc1.0\scans\scan_benign_10_HR.pkl")
+pkl_path = Path(r".\final_training_data\sc0.4\scans\scan_benign_10_LR.pkl")
 
 with open(pkl_path, "rb") as f:
     data = pickle.load(f)
 
 print("type:", type(data))
+print("keys:", list(data.keys()))
+print()
 
-if isinstance(data, dict):
-    print("keys:", list(data.keys()))
+for key, value in data.items():
+    print(f"[{key}]")
+    print("  type:", type(value))
+
+    if isinstance(value, dict):
+        print("  dict keys:", list(value.keys()))
+        for sub_key, sub_value in value.items():
+            print(f"    - {sub_key}: {sub_value}")
+    elif isinstance(value, np.ndarray):
+        print("  shape:", value.shape)
+        print("  dtype:", value.dtype)
+        print("  min:", float(np.min(value)))
+        print("  max:", float(np.max(value)))
+    else:
+        print("  value:", value)
+
     print()
-
-    for key, value in data.items():
-        print(f"[{key}]")
-        print("  type:", type(value))
-
-        if isinstance(value, np.ndarray):
-            print("  shape:", value.shape)
-            print("  dtype:", value.dtype)
-            print("  min:", float(np.min(value)))
-            print("  max:", float(np.max(value)))
-        else:
-            print("  value:", value)
-        print()
-else:
-    print(data)

@@ -80,6 +80,25 @@ class PythonSimulationPostProcessor:
             kgrid_dt, kgrid_Nt, element_width
         )
         
+        
+        simulation_metadata = self._extract_simulation_metadata(
+            sim_data=sim_data,
+            scan_lines=scan_lines,
+            sound_speed_map=sound_speed_map,
+            element_width=element_width,
+        )
+
+        processed_results["raw_simulation"] = {
+            "scan_lines": scan_lines,
+            "kgrid_dt": kgrid_dt,
+            "kgrid_Nt": kgrid_Nt,
+            "full_sound_speed_map": sound_speed_map,
+            "full_density_map": density_map,
+            "full_semantic_map": semantic_map,
+        }
+
+        processed_results["simulation_metadata"] = simulation_metadata
+
         # Create output directories
         os.makedirs(output_path, exist_ok=True)
         scans_path = os.path.join(output_path, "scans")
@@ -99,6 +118,119 @@ class PythonSimulationPostProcessor:
         print(f"Successfully processed sample {sample_name}")
         return result_paths
     
+    @staticmethod
+    def _mat_scalar(sim_data: Dict, key: str, default=None, cast_type=None):
+        if key not in sim_data:
+            return default
+
+        value = sim_data[key]
+
+        if isinstance(value, np.ndarray):
+            if value.size == 0:
+                return default
+            value = value.squeeze()
+            if hasattr(value, "item"):
+                try:
+                    value = value.item()
+                except Exception:
+                    pass
+
+        if cast_type is not None and value is not None:
+            try:
+                value = cast_type(value)
+            except Exception:
+                return default
+
+        return value
+
+
+    def _extract_simulation_metadata(
+        self,
+        sim_data: Dict,
+        scan_lines: np.ndarray,
+        sound_speed_map: np.ndarray,
+        element_width: int,
+    ) -> Dict:
+        sc_w_x = self._mat_scalar(
+            sim_data,
+            "sc_w_x",
+            getattr(self.config, "sc_w_x", None),
+            float,
+        )
+        sc_w_y = self._mat_scalar(
+            sim_data,
+            "sc_w_y",
+            getattr(self.config, "sc_w_y", None),
+            float,
+        )
+
+        num_scan_lines = self._mat_scalar(
+            sim_data,
+            "num_scan_lines",
+            int(scan_lines.shape[0]),
+            int,
+        )
+        scan_element_width = self._mat_scalar(
+            sim_data,
+            "scan_element_width",
+            int(element_width),
+            int,
+        )
+
+        grid_y_size = self._mat_scalar(
+            sim_data,
+            "grid_y_size",
+            int(sound_speed_map.shape[1] - num_scan_lines * scan_element_width),
+            int,
+        )
+
+        transducer_element_width = self._mat_scalar(
+            sim_data,
+            "transducer_element_width",
+            None,
+            int,
+        )
+        transducer_width = self._mat_scalar(
+            sim_data,
+            "transducer_width",
+            None,
+            int,
+        )
+        simulation_time_minutes = self._mat_scalar(
+            sim_data,
+            "simulation_time_minutes",
+            None,
+            float,
+        )
+
+        if transducer_element_width is None and sc_w_y is not None:
+            number_elements_before = 32
+            element_width_before = 2
+            number_elements = max(1, int(round(number_elements_before * float(sc_w_y))))
+            transducer_element_width = int(
+                (number_elements_before * element_width_before * self.config.dy_before)
+                / (number_elements * self.config.dy)
+            )
+
+        if transducer_width is None and sc_w_y is not None and transducer_element_width is not None:
+            number_elements_before = 32
+            number_elements = max(1, int(round(number_elements_before * float(sc_w_y))))
+            transducer_width = int(number_elements * transducer_element_width)
+
+        return {
+            "sc_w_x": sc_w_x,
+            "sc_w_y": sc_w_y,
+            "num_scan_lines": int(num_scan_lines),
+            "scan_element_width": int(scan_element_width),
+            "transducer_element_width": (
+                int(transducer_element_width) if transducer_element_width is not None else None
+            ),
+            "grid_y_size": int(grid_y_size),
+            "transducer_width": (
+                int(transducer_width) if transducer_width is not None else None
+            ),
+            "simulation_time_minutes": simulation_time_minutes,
+        }
     def _process_scan_lines(self, scan_lines: np.ndarray, sound_speed_map: np.ndarray,
                            semantic_map: np.ndarray, kgrid_dt: float, kgrid_Nt: int,
                            element_width: int) -> Dict:
@@ -431,7 +563,37 @@ class PythonSimulationPostProcessor:
         scan_data = {
             "noisy_us_scan_b_mode": b_mode_resized,
             "noisy_us_scan_harmonic": harmonic_resized,
+            "scan_lines": processed_results["raw_simulation"]["scan_lines"],
+            "kgrid_dt": processed_results["raw_simulation"]["kgrid_dt"],
+            "kgrid_Nt": processed_results["raw_simulation"]["kgrid_Nt"],
+            "full_sound_speed_map": processed_results["raw_simulation"]["full_sound_speed_map"],
+            "full_density_map": processed_results["raw_simulation"]["full_density_map"],
+            "full_semantic_map": processed_results["raw_simulation"]["full_semantic_map"],
+            "simulation_metadata": processed_results["simulation_metadata"],
         }
+        # ============================================================
+        # 3) 저장 후 pkl 안에 들어갈 항목
+        # ============================================================
+        # scan_*.pkl
+        # - noisy_us_scan_b_mode
+        # - noisy_us_scan_harmonic
+        # - scan_lines
+        # - kgrid_dt
+        # - kgrid_Nt
+        # - full_sound_speed_map
+        # - full_density_map
+        # - full_semantic_map
+        # - simulation_metadata
+        #
+        # simulation_metadata 안:
+        # - sc_w_x
+        # - sc_w_y
+        # - num_scan_lines
+        # - scan_element_width
+        # - transducer_element_width
+        # - grid_y_size
+        # - transducer_width
+        # - simulation_time_minutes
 
         label_data = {
             "clean_phantom_gray": processed_results["phantom_labels"]["tumor_gray_label"],

@@ -352,7 +352,7 @@ class WandBLogger:
         suffix = ""
         if "sc1.0" in final_output_path:
             suffix = "_HR"
-        elif "sc0.4" in final_output_path:
+        elif "sc0.2" in final_output_path: 
             suffix = "_LR"
 
         scan_file = os.path.join(
@@ -1284,6 +1284,7 @@ def main():
         description="Run Python k-Wave Ultrasound Simulation Pipeline",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
+    
 Examples:
   # Run first 100 samples end-to-end (DEFAULT)
   python run_python_pipeline.py --end-sample-id 100 --gpu
@@ -1307,7 +1308,13 @@ Examples:
   python run_python_pipeline.py --sample-range 1 20 --stages phantom-analysis
         """,
     )
-
+    parser.add_argument(
+        "--scale-mode",
+        type=str,
+        choices=["all", "hr", "lr"],
+        default="all",
+        help="Which scale variants to run: all, hr, or lr",
+    )
     # Sample selection arguments
     sample_group = parser.add_mutually_exclusive_group(required=False)
     sample_group.add_argument(
@@ -1405,6 +1412,20 @@ Examples:
 
     # Update configuration from command line arguments
     config.update_from_args(args)
+
+    if args.scale_mode == "hr":
+        config.scale_variants = [
+            variant for variant in config.scale_variants
+            if variant["name"] == "sc1.0"
+        ]
+    elif args.scale_mode == "lr":
+        config.scale_variants = [
+            variant for variant in config.scale_variants
+            if variant["name"] != "sc1.0"
+        ]
+
+    print(f"Scale mode: {args.scale_mode}")
+    print(f"Selected scale variants: {[v['name'] for v in config.scale_variants]}")
 
     # Set sample names to process attribute
     config.sample_names_to_process = None

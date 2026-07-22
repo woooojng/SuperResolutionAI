@@ -82,7 +82,7 @@ class BaseOptions:
         ###
         self.scale_variants = [
             {"name": "sc1.0", "sc_w_x": 1.0, "sc_w_y": 1.0},
-            {"name": "sc0.4", "sc_w_x": 0.4, "sc_w_y": 0.4},
+            {"name": "sc0.2", "sc_w_x": 0.2, "sc_w_y": 0.2},
         ]
 
         # Physical parameters
@@ -117,7 +117,7 @@ class BaseOptions:
         self.tone_burst_freq = 1e6 * math.sqrt(self.sc_w_x) ###1.5e6  # Frequency [Hz] - Reduced for better penetration
         self.tone_burst_cycles = 4 * math.sqrt(self.sc_w_x) ### 4
         # ==============================scan lines and element_width before & after ===================================
-        self.number_scan_lines_before = 48 ###384
+        self.number_scan_lines_before = 384 ###384
         self.element_width_before = 2
         ###element_width*dy = scan_line_step and this should be 1/self.sc_w_y  times = 8 times, therefore self.element_width = self.element_width_before
         self.element_width = int(self.element_width_before) #2 # Element width in pixels
@@ -329,26 +329,52 @@ class PostProcessingConfig(BaseOptions):
     """Post-processing specific configuration inheriting from BaseOptions"""
     
     def __init__(self, **kwargs):
-        # Initialize base options
         super().__init__()
         
-        # Post-processing specific defaults
-        self.target_shape = (256, 256) 
+        self.target_shape = (256, 256)
         self.show_preview = False
         self.file_suffix = ""
-        # Post-processing parameters (from original module)
         self.gamma_correction = 0.5
         self.fund_filter_bw = 100
         self.harm_filter_bw = 30
         self.compression_ratio = 3
-        self.semantic_label = 4  # Label for tumor regions in semantic map
+        self.semantic_label = 4
         
-        # Override with any provided keyword arguments
         for key, value in kwargs.items():
             if hasattr(self, key):
                 setattr(self, key, value)
             else:
                 print(f"Warning: Unknown post-processing config parameter '{key}' = {value}")
+        
+        self._calculate_derived_parameters()
+
+    def _calculate_derived_parameters(self):
+        self.Nx = int(self.Nx_before * self.sc_w_x)
+        self.Ny = int(self.Ny_before * self.sc_w_y)
+
+        self.dx = self.x_size / self.Nx
+        self.dy = self.y_size / self.Ny
+        self.z_size = self.Nz * self.dz
+
+        self.pml_x_size = max(
+            8,
+            int(math.ceil(self.pml_x_size_before * self.dx_before / self.dx)),
+        )
+        self.pml_y_size = max(
+            8,
+            int(math.ceil(self.pml_y_size_before * self.dy_before / self.dy)),
+        )
+
+        self.tone_burst_freq = 1e6 * math.sqrt(self.sc_w_x)
+        self.tone_burst_cycles = 4 * math.sqrt(self.sc_w_x)
+
+        self.element_width = int(self.element_width_before)
+        self.number_scan_lines = int(
+            self.number_scan_lines_before
+            * self.element_width_before
+            * self.dy_before
+            / (self.element_width * self.dy)
+        )
 
 class DataPreparationConfig(BaseOptions):
     """Data preparation specific configuration inheriting from BaseOptions"""

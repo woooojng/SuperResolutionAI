@@ -36,11 +36,19 @@ from scipy.ndimage import convolve1d, zoom, gaussian_filter
 
 # Import centralized configuration
 from helpers.base_options_scale_artifact_fixed_v3 import SimulationConfig
+import time
 
 ###
-SEED = 42
-random.seed(SEED)
-np.random.seed(SEED)
+def stable_seed(*parts: str) -> int:
+    seed = 0
+    for part in parts:
+        seed = zlib.crc32(str(part).encode("utf-8"), seed)
+    return seed % (2**32)
+
+
+def set_global_seed(seed: int) -> None:
+    random.seed(seed)
+    np.random.seed(seed)
 ###
 ###
 '''
@@ -810,7 +818,8 @@ class UltrasoundSimulator:
         self.config = config
         self.tissue_manager = TissuePropertiesManager()
         self.grf_generator = GaussianRandomFieldGenerator()
-        
+        self.last_transducer_debug_info = {}
+
         # Calculate grid parameters using Vector objects
         self.pml_size_points = Vector([config.pml_x_size, config.pml_y_size, config.pml_z_size])
         self.grid_size_points = Vector([config.Nx, config.Ny, config.Nz])
@@ -904,6 +913,17 @@ class UltrasoundSimulator:
         print("Grid y size:", self.grid_size_points.y)
         print("Transducer width:", transducer_width)
         print("Transducer position:", transducer_params.position)
+
+        self.last_transducer_debug_info = {
+            "sc_w_x": float(config.sc_w_x),
+            "sc_w_y": float(config.sc_w_y),
+            "num_scan_lines": int(config.number_scan_lines),
+            "scan_element_width": int(config.element_width),
+            "transducer_element_width": int(transducer_params.element_width),
+            "grid_y_size": int(self.grid_size_points.y),
+            "transducer_width": int(transducer_width),
+        }
+
         ###
         simple_transducer = kWaveTransducerSimple(self.kgrid, **transducer_params)
         
@@ -1210,12 +1230,9 @@ class UltrasoundSimulator:
 
         # Deterministic seed per sample.
         # Same sample name -> same GRF and tissue texture on every run.
-        sample_seed = (
-            SEED + zlib.crc32(sample_name.encode('utf-8'))
-        ) % (2**32)
-        random.seed(sample_seed)
-        np.random.seed(sample_seed)
-        print(f'Deterministic sample seed: {sample_seed}')
+        sample_seed = stable_seed("sample", sample_name)
+        set_global_seed(sample_seed)
+        print(f"Deterministic sample seed: {sample_seed}")
         
         # Setup paths
         ###sample_folder = os.path.join(input_data_path, sample_name)
@@ -1307,15 +1324,14 @@ class UltrasoundSimulator:
         ###
         results = {}
         
+        sample_output_path = os.path.join(output_path, sample_name)
+        os.makedirs(sample_output_path, exist_ok=True)
+
         # Process each noise level
         for noise_level in noise_levels:
-            level_seed = (
-                sample_seed
-                + zlib.crc32(noise_level.encode('utf-8'))
-            ) % (2**32)
-            random.seed(level_seed)
-            np.random.seed(level_seed)
-            print(f'Deterministic noise-level seed: {level_seed}')
+            level_seed = stable_seed("sample", sample_name, "noise", noise_level)
+            set_global_seed(level_seed)
+            print(f"Deterministic noise-level seed: {level_seed}")
 
             print(f"Processing noise level: {noise_level}")
             
@@ -1341,7 +1357,20 @@ class UltrasoundSimulator:
             if run_simulation:
                 # Run k-Wave simulation
                 print("Running k-Wave simulation...")
-                scan_lines = self._run_kwave_simulation(sound_speed_map, density_map)
+                simulation_start_time = time.perf_counter()
+
+                scan_lines = self._run_kwave_simulation(
+                    sound_speed_map=sound_speed_map,
+                    density_map=density_map,
+                )
+
+                simulation_time_minutes = (time.perf_counter() - simulation_start_time) / 60.0
+
+                print(
+                    f"Simulation runtime for {sample_name} [{noise_level}] "
+                    f"({self.config.sc_w_x}, {self.config.sc_w_y}): "
+                    f"{simulation_time_minutes:.2f} minutes"
+                )
                 
                 # Save simulation results
                 simulation_file = os.path.join(results_folder, f"simulation_{noise_level}.mat")
@@ -1352,7 +1381,15 @@ class UltrasoundSimulator:
                     'kgrid_dt': self.kgrid.dt,
                     'kgrid_Nt': self.kgrid.Nt,
                     'element_width': config.element_width,
-                    'sample_name': sample_name  # Include sample name for reference
+                    'sample_name': sample_name,  # Include sample name for reference
+                    "sc_w_x": float(self.config.sc_w_x),
+                    "sc_w_y": float(self.config.sc_w_y),
+                    "num_scan_lines": int(self.last_transducer_debug_info.get("num_scan_lines", self.config.number_scan_lines)),
+                    "scan_element_width": int(self.last_transducer_debug_info.get("scan_element_width", self.config.element_width)),
+                    "transducer_element_width": int(self.last_transducer_debug_info.get("transducer_element_width", 0)),
+                    "grid_y_size": int(self.last_transducer_debug_info.get("grid_y_size", self.config.Ny)),
+                    "transducer_width": int(self.last_transducer_debug_info.get("transducer_width", 0)),
+                    "simulation_time_minutes": float(simulation_time_minutes),
                 })
                 
                 results[noise_level] = {
