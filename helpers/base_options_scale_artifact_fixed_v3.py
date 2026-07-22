@@ -69,8 +69,8 @@ class BaseOptions:
         # =================================================================
         # Grid parameters
         self.sc = 1.0  # scaling factor
-        self.sc_w_x = 4/3
-        self.sc_w_y = 4/3
+        self.sc_w_x = 1
+        self.sc_w_y = 1
         self.Nx_before = 256
         self.Nx = int(self.Nx_before * self.sc_w_x)
         self.Ny_before = 256
@@ -79,7 +79,12 @@ class BaseOptions:
         # self.dx = 0.000152  # Grid spacing in x [m]
         # self.dy = 0.000152  # Grid spacing in y [m] 
         # self.dz = 0.000152  # Grid spacing in z [m]
-        
+        ###
+        self.scale_variants = [
+            {"name": "sc1.0", "sc_w_x": 1.0, "sc_w_y": 1.0},
+            {"name": "sc0.4", "sc_w_x": 0.4, "sc_w_y": 0.4},
+        ]
+
         # Physical parameters
         self.x_size = 40e-3  # [m]
         self.y_size = 40e-3  ###   # Will be calculated from x_size
@@ -107,12 +112,12 @@ class BaseOptions:
         self.alpha_power = 1.5   # Absorption power law exponent
         self.BonA = 6.0  # Nonlinearity parameter
         
-        # Source parameters
+        # Source parameters 
         self.source_strength = 1e6
         self.tone_burst_freq = 1e6 * math.sqrt(self.sc_w_x) ###1.5e6  # Frequency [Hz] - Reduced for better penetration
         self.tone_burst_cycles = 4 * math.sqrt(self.sc_w_x) ### 4
         # ==============================scan lines and element_width before & after ===================================
-        self.number_scan_lines_before = 384 ###384
+        self.number_scan_lines_before = 96 ###384
         self.element_width_before = 2
         ###element_width*dy = scan_line_step and this should be 1/self.sc_w_y  times = 8 times, therefore self.element_width = self.element_width_before
         self.element_width = int(self.element_width_before) #2 # Element width in pixels
@@ -255,17 +260,48 @@ class SimulationConfig(BaseOptions):
     def _calculate_derived_parameters(self):
         """Calculate derived parameters from basic settings"""
         # Calculate grid spacing
+        self.Nx = int(self.Nx_before * self.sc_w_x)
+        self.Ny = int(self.Ny_before * self.sc_w_y)
+
         self.dx = self.x_size / self.Nx
-        self.dy = self.y_size / self.Ny ###self.dx  # Keep square pixels
-        ### self.dz = self.dx  # Keep isotropic for now
-        
-        # Calculate y and z sizes
-        ### self.y_size = self.Ny * self.dy
+        self.dy = self.y_size / self.Ny
         self.z_size = self.Nz * self.dz
-        
-        print(f"Calculated derived parameters:")
-        print(f"  Grid spacing: dx={self.dx*1000:.3f}mm, dy={self.dy*1000:.3f}mm, dz={self.dz*1000:.3f}mm")
-        print(f"  Physical size: {self.x_size*1000:.1f}×{self.y_size*1000:.1f}×{self.z_size*1000:.1f} mm")
+
+        self.pml_x_size = max(
+            8,
+            int(math.ceil(self.pml_x_size_before * self.dx_before / self.dx)),
+        )
+        self.pml_y_size = max(
+            8,
+            int(math.ceil(self.pml_y_size_before * self.dy_before / self.dy)),
+        )
+
+        self.tone_burst_freq = 1e6 * math.sqrt(self.sc_w_x)
+        self.tone_burst_cycles = 4 * math.sqrt(self.sc_w_x)
+
+        self.element_width = int(self.element_width_before)
+        self.number_scan_lines = int(
+            self.number_scan_lines_before
+            * self.element_width_before
+            * self.dy_before
+            / (self.element_width * self.dy)
+        )
+
+        print("Calculated derived parameters:")
+        print(
+            f"  Scale: sc_w_x={self.sc_w_x}, sc_w_y={self.sc_w_y}"
+        )
+        print(
+            f"  Grid: Nx={self.Nx}, Ny={self.Ny}, Nz={self.Nz}"
+        )
+        print(
+            f"  Grid spacing: dx={self.dx*1000:.3f}mm, "
+            f"dy={self.dy*1000:.3f}mm, dz={self.dz*1000:.3f}mm"
+        )
+        print(
+            f"  Physical size: {self.x_size*1000:.1f}×"
+            f"{self.y_size*1000:.1f}×{self.z_size*1000:.1f} mm"
+        )
     
     def update_for_gpu(self):
         """Update configuration for GPU processing"""

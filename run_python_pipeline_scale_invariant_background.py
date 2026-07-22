@@ -60,9 +60,9 @@ except ImportError:
     WANDB_AVAILABLE = False
 
 ###
-SEED = 42
-random.seed(SEED)
-np.random.seed(SEED)
+# SEED = np.random.randint(0, 2**32 - 1)
+#random.seed(SEED)
+#np.random.seed(SEED)
 ###
 class PipelineConfig(BaseOptions):
     """Configuration class for the complete pipeline inheriting from BaseOptions"""
@@ -788,8 +788,18 @@ class PipelineRunner:
                 print("\n" + "=" * 40)
                 print("STAGE 2: k-Wave Simulation")
                 print("=" * 40)
-                simulation_results = self._run_simulation()
-                results["simulation"] = simulation_results
+                simulation_results = self._run_simulation() # inital rin
+                results["simulation_lr"] = simulation_results
+            
+            # # Stage 2: k-Wave Simulation (for high resolution or additional noise levels)
+            # # chanbge the config parameter
+            # self.config.sc = 1.0  # Reset scaling factor for high-resolution simulation
+            # if self.config.run_simulation:
+            #     print("\n" + "=" * 40)
+            #     print("STAGE 2: k-Wave Simulation")
+            #     print("=" * 40)
+            #     simulation_results = self._run_simulation() # inital rin for HR
+            #     results["simulation_hr"] = simulation_results
 
             # Stage 3: Post-Processing
             if self.config.run_post_processing:
@@ -1042,73 +1052,116 @@ class PipelineRunner:
             self.processed_sample_names = []
 
     def _run_simulation(self) -> Dict:
-        """Run k-Wave simulation stage"""
+        """Run k-Wave simulation stage for all scale variants"""
 
         print(f"Running simulations for {len(self.processed_sample_names)} samples")
         print(f"Noise levels: {self.config.noise_levels}")
-        print(f"Output path: {self.config.simulation_results_path}")
-
-        # Setup simulation configuration
-        sim_config = SimulationConfig()
-        if self.config.use_gpu:
-            sim_config.data_cast = "gpuArray-single"
-            print("✓ GPU acceleration enabled")
-        else:
-            sim_config.data_cast = "single"
-            print("CPU simulation mode")
-
-        simulator = UltrasoundSimulator(sim_config)
+        print(f"Base output path: {self.config.simulation_results_path}")
 
         simulation_results = {}
 
-        for i, sample_name in enumerate(self.processed_sample_names):
+        for variant in self.config.scale_variants:
+            variant_name = variant["name"]
+            variant_sim_path = os.path.join(
+                self.config.simulation_results_path,
+                variant_name,
+            )
+            os.makedirs(variant_sim_path, exist_ok=True)
+
+            print("\n" + "=" * 80)
             print(
-                f"\nProcessing sample {sample_name} ({i+1}/{len(self.processed_sample_names)})"
+                f"Scale variant: {variant_name} "
+                f"(sc_w_x={variant['sc_w_x']}, sc_w_y={variant['sc_w_y']})"
+            )
+            print("=" * 80)
+
+            sim_config = SimulationConfig(
+                sc_w_x=variant["sc_w_x"],
+                sc_w_y=variant["sc_w_y"],
             )
 
-            try:
-                sample_results = simulator.run_simulation(
-                    sample_name=sample_name,
-                    input_data_path=self.config.processed_phantoms_path,
-                    output_path=self.config.simulation_results_path,
-                    noise_levels=self.config.noise_levels,
-                    run_simulation=True,
+            if self.config.use_gpu:
+                sim_config.data_cast = "gpuArray-single"
+                print("✓ GPU acceleration enabled")
+            else:
+                sim_config.data_cast = "single"
+                print("CPU simulation mode")
+
+            simulator = UltrasoundSimulator(sim_config)
+            simulation_results[variant_name] = {}
+
+            for i, sample_name in enumerate(self.processed_sample_names):
+                print(
+                    f"\nProcessing sample {sample_name} "
+                    f"({i+1}/{len(self.processed_sample_names)}) [{variant_name}]"
                 )
 
-                simulation_results[sample_name] = sample_results
-                print(f"✓ Sample {sample_name} simulation completed")
+                try:
+                    sample_results = simulator.run_simulation(
+                        sample_name=sample_name,
+                        input_data_path=self.config.processed_phantoms_path,
+                        output_path=variant_sim_path,
+                        noise_levels=self.config.noise_levels,
+                        run_simulation=True,
+                    )
 
-            except Exception as e:
-                print(f"✗ Error simulating sample {sample_name}: {e}")
-                continue
+                    simulation_results[variant_name][sample_name] = sample_results
+                    print(f"✓ Sample {sample_name} simulation completed [{variant_name}]")
 
+                except Exception as e:
+                    print(f"✗ Error simulating sample {sample_name} [{variant_name}]: {e}")
+                    continue
+
+        total_done = sum(len(v) for v in simulation_results.values())
         print(
-            f"\n✓ Simulation stage completed: {len(simulation_results)} samples successfully simulated"
+            f"\n✓ Simulation stage completed: {total_done} sample-runs successfully simulated"
         )
         return simulation_results
 
     def _run_post_processing(self) -> Dict:
-        """Run post-processing stage"""
+        """Run post-processing stage for all scale variants"""
 
         print(f"Post-processing {len(self.processed_sample_names)} samples")
-        print(f"Output path: {self.config.final_output_path}")
+        print(f"Base output path: {self.config.final_output_path}")
 
-        # Setup post-processing configuration
-        post_config = PostProcessingConfig(
-            target_shape=self.config.target_phantom_size,
-            show_preview=self.config.show_post_processing_previews,
-        )
+        results = {}
 
-        # Run batch post-processing
-        results = process_batch(
-            simulation_results_path=self.config.simulation_results_path,
-            output_path=self.config.final_output_path,
-            sample_names=self.processed_sample_names,
-            noise_levels=self.config.noise_levels,
-            config=post_config,
-        )
+        for variant in self.config.scale_variants:
+            variant_name = variant["name"]
+            variant_sim_path = os.path.join(
+                self.config.simulation_results_path,
+                variant_name,
+            )
+            variant_out_path = os.path.join(
+                self.config.final_output_path,
+                variant_name,
+            )
 
-        print(f"✓ Post-processing completed: {len(results)} samples processed")
+            print("\n" + "=" * 80)
+            print(f"Post-processing scale variant: {variant_name}")
+            print("=" * 80)
+
+            post_config = PostProcessingConfig(
+                target_shape=self.config.target_phantom_size,
+                show_preview=self.config.show_post_processing_previews,
+                sc_w_x=variant["sc_w_x"],
+                sc_w_y=variant["sc_w_y"],
+            )
+
+            variant_results = process_batch(
+                simulation_results_path=variant_sim_path,
+                output_path=variant_out_path,
+                sample_names=self.processed_sample_names,
+                noise_levels=self.config.noise_levels,
+                config=post_config,
+            )
+
+            results[variant_name] = variant_results
+            print(
+                f"✓ Post-processing completed [{variant_name}]: "
+                f"{len(variant_results)} samples processed"
+            )
+
         return results
 
     def _print_pipeline_summary(self, results: Dict, total_time: float):

@@ -430,17 +430,31 @@ class PythonSimulationPostProcessor:
         # Save as pickle files
         scan_file = os.path.join(scans_path, f"scan_{sample_name}.pkl")
         label_file = os.path.join(labels_path, f"label_{sample_name}.pkl")
-        
-        with open(scan_file, 'wb') as f:
+
+        with open(scan_file, "wb") as f:
             pickle.dump(scan_data, f)
-        
-        with open(label_file, 'wb') as f:
+
+        with open(label_file, "wb") as f:
             pickle.dump(label_data, f)
-        
+
+        b_mode_png = os.path.join(scans_path, f"scan_{sample_name}_bmode.png")
+        harmonic_png = os.path.join(scans_path, f"scan_{sample_name}_harmonic.png")
+
+        cv2.imwrite(
+            b_mode_png,
+            (np.clip(b_mode_resized, 0, 1) * 255).astype(np.uint8),
+        )
+        cv2.imwrite(
+            harmonic_png,
+            (np.clip(harmonic_resized, 0, 1) * 255).astype(np.uint8),
+        )
+
         return {
-            'scan_file': scan_file,
-            'label_file': label_file,
-            'processed_data': {**scan_data, **label_data}
+            "scan_file": scan_file,
+            "label_file": label_file,
+            "b_mode_png": b_mode_png,
+            "harmonic_png": harmonic_png,
+            "processed_data": {**scan_data, **label_data},
         }
     
     def _gamma_correction(self, image: np.ndarray) -> np.ndarray:
