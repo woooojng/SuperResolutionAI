@@ -84,7 +84,7 @@ class BaseOptions:
             {"name": "sc1.0", "sc_w_x": 1.0, "sc_w_y": 1.0},
             {"name": "sc0.2", "sc_w_x": 0.2, "sc_w_y": 0.2},
         ]
-
+        self.base_seed = None
         # Physical parameters
         self.x_size = 40e-3  # [m]
         self.y_size = 40e-3  ###   # Will be calculated from x_size

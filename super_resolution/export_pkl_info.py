@@ -3,7 +3,7 @@ import pickle
 from pathlib import Path
 import numpy as np
 
-pkl_path = Path(r".\final_training_data\sc0.4\scans\scan_benign_10_LR.pkl")
+pkl_path = Path(r"C:\Users\CMME260629\projects_cmme\SuperResolutionAI\super_resolution\final_training_data\sc1.0\scans\scan_benign_10_HR.pkl")
 
 with open(pkl_path, "rb") as f:
     data = pickle.load(f)

@@ -176,7 +176,12 @@ class PythonSimulationPostProcessor:
             int(element_width),
             int,
         )
-
+        grid_x_size = self._mat_scalar(
+            sim_data,
+            "grid_x_size",
+            getattr(self.config, "Nx", None),
+            int,
+        )
         grid_y_size = self._mat_scalar(
             sim_data,
             "grid_y_size",
@@ -202,7 +207,30 @@ class PythonSimulationPostProcessor:
             None,
             float,
         )
-
+        pml_x_size = self._mat_scalar(
+            sim_data,
+            "pml_x_size",
+            getattr(self.config, "pml_x_size", None),
+            int,
+        )
+        pml_y_size = self._mat_scalar(
+            sim_data,
+            "pml_y_size",
+            getattr(self.config, "pml_y_size", None),
+            int,
+        )
+        tone_burst_freq = self._mat_scalar(
+            sim_data,
+            "tone_burst_freq",
+            getattr(self.config, "tone_burst_freq", None),
+            float,
+        )
+        tone_burst_cycles = self._mat_scalar(
+            sim_data,
+            "tone_burst_cycles",
+            getattr(self.config, "tone_burst_cycles", None),
+            float,
+        )
         if transducer_element_width is None and sc_w_y is not None:
             number_elements_before = 32
             element_width_before = 2
@@ -225,10 +253,15 @@ class PythonSimulationPostProcessor:
             "transducer_element_width": (
                 int(transducer_element_width) if transducer_element_width is not None else None
             ),
+            "grid_x_size": int(grid_x_size) if grid_x_size is not None else None,
             "grid_y_size": int(grid_y_size),
             "transducer_width": (
                 int(transducer_width) if transducer_width is not None else None
             ),
+            "pml_x_size": int(pml_x_size) if pml_x_size is not None else None,
+            "pml_y_size": int(pml_y_size) if pml_y_size is not None else None,
+            "tone_burst_freq": float(tone_burst_freq) if tone_burst_freq is not None else None,
+            "tone_burst_cycles": float(tone_burst_cycles) if tone_burst_cycles is not None else None,
             "simulation_time_minutes": simulation_time_minutes,
         }
     def _process_scan_lines(self, scan_lines: np.ndarray, sound_speed_map: np.ndarray,

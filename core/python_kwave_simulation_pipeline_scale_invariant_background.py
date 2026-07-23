@@ -920,6 +920,7 @@ class UltrasoundSimulator:
             "num_scan_lines": int(config.number_scan_lines),
             "scan_element_width": int(config.element_width),
             "transducer_element_width": int(transducer_params.element_width),
+            "grid_x_size": int(self.grid_size_points.x),
             "grid_y_size": int(self.grid_size_points.y),
             "transducer_width": int(transducer_width),
         }
@@ -1230,7 +1231,13 @@ class UltrasoundSimulator:
 
         # Deterministic seed per sample.
         # Same sample name -> same GRF and tissue texture on every run.
-        sample_seed = stable_seed("sample", sample_name)
+        base_seed = self.config.base_seed if self.config.base_seed is not None else 0
+
+        sample_seed = stable_seed(
+            str(base_seed),
+            "sample",
+            sample_name,
+        )
         set_global_seed(sample_seed)
         print(f"Deterministic sample seed: {sample_seed}")
         
@@ -1329,7 +1336,13 @@ class UltrasoundSimulator:
 
         # Process each noise level
         for noise_level in noise_levels:
-            level_seed = stable_seed("sample", sample_name, "noise", noise_level)
+            level_seed = stable_seed(
+                str(base_seed),
+                "sample",
+                sample_name,
+                "noise",
+                noise_level,
+            )
             set_global_seed(level_seed)
             print(f"Deterministic noise-level seed: {level_seed}")
 
@@ -1387,9 +1400,14 @@ class UltrasoundSimulator:
                     "num_scan_lines": int(self.last_transducer_debug_info.get("num_scan_lines", self.config.number_scan_lines)),
                     "scan_element_width": int(self.last_transducer_debug_info.get("scan_element_width", self.config.element_width)),
                     "transducer_element_width": int(self.last_transducer_debug_info.get("transducer_element_width", 0)),
+                    "grid_x_size": int(self.last_transducer_debug_info.get("grid_x_size", self.config.Nx)),
                     "grid_y_size": int(self.last_transducer_debug_info.get("grid_y_size", self.config.Ny)),
                     "transducer_width": int(self.last_transducer_debug_info.get("transducer_width", 0)),
                     "simulation_time_minutes": float(simulation_time_minutes),
+                    "pml_x_size": int(self.config.pml_x_size),
+                    "pml_y_size": int(self.config.pml_y_size),
+                    "tone_burst_freq": float(self.config.tone_burst_freq),
+                    "tone_burst_cycles": float(self.config.tone_burst_cycles),
                 })
                 
                 results[noise_level] = {

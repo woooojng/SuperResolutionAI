@@ -1065,7 +1065,8 @@ class PipelineRunner:
 
     def _run_simulation(self) -> Dict:
         """Run k-Wave simulation stage for all scale variants"""
-
+        run_seed = random.SystemRandom().randrange(2**32)
+        print(f"Run seed: {run_seed}")
         print(f"Running simulations for {len(self.processed_sample_names)} samples")
         print(f"Noise levels: {self.config.noise_levels}")
         print(f"Base output path: {self.config.simulation_results_path}")
@@ -1090,6 +1091,7 @@ class PipelineRunner:
             sim_config = SimulationConfig(
                 sc_w_x=variant["sc_w_x"],
                 sc_w_y=variant["sc_w_y"],
+                base_seed=run_seed,
             )
 
             if self.config.use_gpu:
